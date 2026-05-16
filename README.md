@@ -1,73 +1,87 @@
-# React + TypeScript + Vite
+# AgentOS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A multi-agent AI framework for Project Profile. Automates operations, client communications, content production, paid media, and reporting through a network of Claude-powered agents orchestrated via Supabase.
 
-Currently, two official plugins are available:
+**Current phase:** Phase 1 — Foundation (infrastructure only, no agents deployed yet)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Supabase** — database, Edge Functions, Realtime
+- **Claude API** — `claude-sonnet-4-20250514`
+- **CRM PM kanban** — frontend (external)
 
-## Expanding the ESLint configuration
+## Agent Pipeline
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+task_trigger → prompt_builder → claude_caller → output_writer → approval_router
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Setup
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. Prerequisites
+
+```bash
+npm install -g supabase
 ```
+
+### 2. Clone and install
+
+```bash
+git clone https://github.com/markleedr/agentos.git
+cd agentos
+npm install
+cp .env.example .env
+# Fill in your credentials in .env
+```
+
+### 3. Link to Supabase
+
+```bash
+supabase link --project-ref your-project-ref
+supabase db push
+```
+
+### 4. Set Edge Function secrets
+
+```bash
+supabase secrets set ANTHROPIC_API_KEY=your-key
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-key
+```
+
+### 5. Deploy Edge Functions
+
+```bash
+supabase functions deploy task-trigger
+supabase functions deploy prompt-builder
+supabase functions deploy claude-caller
+supabase functions deploy output-writer
+supabase functions deploy approval-router
+```
+
+### 6. Run the smoke test
+
+```bash
+npx ts-node tests/smoke-test.ts
+```
+
+---
+
+## Phase 1 Definition of Done
+
+- [ ] All six Supabase tables exist with correct schema
+- [ ] All five Edge Functions deployed and returning 200
+- [ ] Task created in tasks table appears within 2 seconds
+- [ ] Claude API called and response returned
+- [ ] Output written to task_outputs table
+- [ ] Task status updated in Supabase
+- [ ] Audit log entries captured for every step
+- [ ] Action Required routing working
+- [ ] Smoke test passes end-to-end with no manual steps
+
+---
+
+See `CLAUDE.md` for full project context and `AgentOS-Phase1-ClaudeCode.md` for the detailed build brief.
