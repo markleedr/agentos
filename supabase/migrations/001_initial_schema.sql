@@ -1,9 +1,8 @@
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
+-- UUID generation is built-in on Postgres 17+ (gen_random_uuid)
 
 -- ─── BOTS ────────────────────────────────────────────────────────────────────
 create table bots (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   name            text not null,
   type            text not null check (type in ('internal', 'universal')),
   scope           text not null check (scope in ('project_profile', 'all_projects', 'pp_and_all')),
@@ -16,7 +15,7 @@ create table bots (
 
 -- ─── BOT INSTANCES ───────────────────────────────────────────────────────────
 create table bot_instances (
-  id                 uuid primary key default uuid_generate_v4(),
+  id                 uuid primary key default gen_random_uuid(),
   bot_id             uuid not null references bots(id) on delete cascade,
   project_id         text not null,
   client_name        text,
@@ -28,7 +27,7 @@ create table bot_instances (
 
 -- ─── BOT KNOWLEDGE ───────────────────────────────────────────────────────────
 create table bot_knowledge (
-  id                   uuid primary key default uuid_generate_v4(),
+  id                   uuid primary key default gen_random_uuid(),
   bot_type             text not null,
   version              integer not null,
   category             text not null,
@@ -41,7 +40,7 @@ create table bot_knowledge (
 
 -- ─── TASKS ───────────────────────────────────────────────────────────────────
 create table tasks (
-  id               uuid primary key default uuid_generate_v4(),
+  id               uuid primary key default gen_random_uuid(),
   crm_task_id      text unique,
   project_id       text not null,
   bot_instance_id  uuid references bot_instances(id),
@@ -58,7 +57,7 @@ create table tasks (
 
 -- ─── TASK OUTPUTS ────────────────────────────────────────────────────────────
 create table task_outputs (
-  id               uuid primary key default uuid_generate_v4(),
+  id               uuid primary key default gen_random_uuid(),
   task_id          uuid not null references tasks(id) on delete cascade,
   bot_instance_id  uuid references bot_instances(id),
   prompt_sent      text,
@@ -72,7 +71,7 @@ create table task_outputs (
 
 -- ─── AUDIT LOG ───────────────────────────────────────────────────────────────
 create table audit_log (
-  id           uuid primary key default uuid_generate_v4(),
+  id           uuid primary key default gen_random_uuid(),
   event_type   text not null,
   bot_id       uuid references bots(id),
   task_id      uuid references tasks(id),
