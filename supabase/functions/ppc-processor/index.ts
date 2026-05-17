@@ -42,18 +42,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // message_type: 'inbound_brief' | 'approval_request' | 'client_query' | 'status_update'
-    const { project_id, client_name, message_type, message, from_name, from_email, subject } = await req.json()
+    const { project_id, client_name, platform, monthly_budget, objective, brief, brief_task_id } = await req.json()
 
-    if (!project_id || !message_type || !message) {
-      throw new Error('project_id, message_type, and message are required')
+    if (!project_id || !brief) {
+      throw new Error('project_id and brief are required')
     }
 
-    // Load Account Manager bot + instance for this client
     const { data: bot } = await supabase
       .from('bots')
       .select('system_prompt, id')
-      .eq('name', 'Account Manager')
+      .eq('name', 'PPC')
       .single()
 
     const { data: instance } = await supabase
@@ -63,34 +61,31 @@ serve(async (req) => {
       .eq('bot_id', bot?.id)
       .single()
 
-    const contextBlock = instance?.context_doc
-      ? `## Client Context\n${instance.context_doc}`
-      : `## Client\n${client_name}`
-
     const userMessage = `
-${contextBlock}
+## Client Context
+${instance?.context_doc || `Client: ${client_name}`}
 
-## Inbound Communication
+## Brief
+${brief}
 
-Type: ${message_type}
-${from_name ? `From: ${from_name}${from_email ? ` <${from_email}>` : ''}` : ''}
-${subject ? `Subject: ${subject}` : ''}
+## Campaign Parameters
+Platform: ${platform || 'meta'}
+Monthly budget: $${monthly_budget || 'TBD'} AUD
+Objective: ${objective || 'leads'}
 
-Message:
-${message}
-
-Draft the appropriate response and provide your internal notes.
+Build the campaign structure for this brief.
 `.trim()
 
     const claudeResponse = await callClaude(bot?.system_prompt || '', userMessage)
 
     let parsed: {
-      response_type: string
-      draft_response: string
-      internal_note: string
+      platform: string
+      campaign_structure: object
+      keywords?: object
+      targeting_rationale: string
+      budget_breakdown: object
+      optimisation_recommendations: string[]
       task_title: string
-      priority: string
-      next_steps: string[]
     }
 
     try {
@@ -99,19 +94,17 @@ Draft the appropriate response and provide your internal notes.
       throw new Error(`Claude returned invalid JSON: ${claudeResponse.substring(0, 200)}`)
     }
 
-    const priority = parsed.priority as 'high' | 'medium' | 'low'
-    const taskStatus = parsed.response_type === 'escalate_to_mark' ? 'action_required' : 'action_required'
-
     const outputText = [
-      `## ${parsed.response_type === 'escalate_to_mark' ? '⚠ Escalation Required' : 'Draft Client Response'}`,
-      parsed.response_type === 'escalate_to_mark'
-        ? `**This requires Mark's direct input before a response can be drafted.**\n\n${parsed.internal_note}`
-        : parsed.draft_response,
-      parsed.internal_note && parsed.response_type !== 'escalate_to_mark'
-        ? `\n---\n**Internal note for Mark:** ${parsed.internal_note}`
-        : '',
-      parsed.next_steps?.length
-        ? `\n**Next steps:**\n${parsed.next_steps.map(s => `- ${s}`).join('\n')}`
+      `## PPC Campaign: ${parsed.platform}`,
+      '',
+      `**Targeting rationale:** ${parsed.targeting_rationale}`,
+      '',
+      `**Budget breakdown:**\n\`\`\`json\n${JSON.stringify(parsed.budget_breakdown, null, 2)}\n\`\`\``,
+      '',
+      `**Campaign structure:**\n\`\`\`json\n${JSON.stringify(parsed.campaign_structure, null, 2)}\n\`\`\``,
+      parsed.keywords ? `\n**Keywords:**\n\`\`\`json\n${JSON.stringify(parsed.keywords, null, 2)}\n\`\`\`` : '',
+      parsed.optimisation_recommendations?.length
+        ? `\n**Optimisation recommendations:**\n${parsed.optimisation_recommendations.map(r => `- ${r}`).join('\n')}`
         : ''
     ].filter(Boolean).join('\n\n')
 
@@ -120,11 +113,12 @@ Draft the appropriate response and provide your internal notes.
       .insert({
         project_id,
         title: parsed.task_title,
-        description: `${client_name} | ${message_type}${subject ? `: ${subject}` : ''}`,
-        assignee: 'mark',
-        priority,
-        status: taskStatus,
-        source: 'agent'
+        description: `${client_name} | ${parsed.platform} campaign | ${objective || 'leads'}`,
+        assignee: 'amit',
+        priority: 'medium',
+        status: 'action_required',
+        source: 'agent',
+        parent_task_id: brief_task_id || null
       })
       .select()
       .single()
@@ -139,21 +133,21 @@ Draft the appropriate response and provide your internal notes.
     })
 
     await supabase.from('audit_log').insert({
-      event_type: 'account_manager_processed',
+      event_type: 'ppc_campaign_generated',
       bot_id: bot?.id,
       task_id: task?.id,
-      description: `Account Manager processed ${message_type} for ${client_name}`,
-      metadata: { project_id, message_type, response_type: parsed.response_type },
+      description: `PPC Bot generated ${parsed.platform} campaign for ${client_name}`,
+      metadata: { project_id, platform: parsed.platform, budget: monthly_budget },
       severity: 'info'
     })
 
     return new Response(
-      JSON.stringify({ processed: true, task_id: task?.id, response_type: parsed.response_type }),
+      JSON.stringify({ processed: true, task_id: task?.id }),
       { status: 200 }
     )
 
   } catch (error) {
-    console.error('account-manager-processor error:', error)
+    console.error('ppc-processor error:', error)
     return new Response(JSON.stringify({ error: error.message }), { status: 500 })
   }
 })

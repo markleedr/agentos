@@ -136,6 +136,20 @@ async function fetchMailchimpData(listId: string, sinceDate: string) {
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
+
+function parseClaudeJSON(text: string): unknown {
+  let json = text.trim()
+  if (json.startsWith('```')) {
+    const nl = String.fromCharCode(10)
+    const firstNewline = json.indexOf(nl)
+    json = firstNewline !== -1 ? json.slice(firstNewline + 1) : json.slice(3)
+    const end = json.lastIndexOf('```')
+    if (end !== -1) json = json.slice(0, end)
+    json = json.trim()
+  }
+  return JSON.parse(json)
+}
+
 serve(async (req) => {
   try {
     const supabase = createClient(
@@ -218,7 +232,7 @@ serve(async (req) => {
     }
 
     try {
-      parsed = JSON.parse(claudeResponse)
+      parsed = parseClaudeJSON(claudeResponse) as typeof parsed
     } catch {
       throw new Error(`Claude returned invalid JSON: ${claudeResponse.substring(0, 200)}`)
     }
